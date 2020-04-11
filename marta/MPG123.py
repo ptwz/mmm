@@ -1,5 +1,4 @@
 from subprocess import Popen, PIPE, STDOUT
-import select
 from threading import Thread, Event
 from logging import getLogger
 
@@ -37,7 +36,7 @@ class MPG123Player(object):
 
         self._on_stop_callback = on_stop_callback
         self._on_error_callback = on_error_callback
-        self._mpg123_process = Popen([MPG123Player._MPG123_BINARY, "--remote"], stdin=PIPE, stdout=PIPE, stderr=STDOUT)
+        self._mpg123_process = Popen([MPG123Player._MPG123_BINARY, "--remote"], stdin=PIPE, stdout=PIPE, stderr=STDOUT, universal_newlines=True, bufsize=2)
 
         self._read_sout_thread = Thread(target=self._read_sout)
         self._read_sout_thread.daemon = True
@@ -55,7 +54,6 @@ class MPG123Player(object):
         debug("mpg123 initialized")
 
     def _mpg123_input(self, line):
-        line = line.decode('utf-8')
         debug("< " + str(line))
 
         if line.startswith("@silence"):
@@ -128,20 +126,15 @@ class MPG123Player(object):
             return
 
     def _read_sout(self):
-        mpg123_stdout_poll = select.poll()
-        mpg123_stdout_poll.register(self._mpg123_process.stdout, select.POLLIN)
-
         while True:
-            mpg123_stdout_poll.poll()
-
-            if self._mpg123_process.poll() is not None:
-                break
-
             line = self._mpg123_process.stdout.readline()
+            # TODO a wee bit hacky, but seems to work more reliable
+            # than using poll()
+            if len(line) == 0:
+                break
             self._mpg123_input(line)
 
         debug("mpg123 died")
-        mpg123_stdout_poll.unregister(self._mpg123_process.stdout)
 
         if self._on_error_callback is not None:
             self._on_error_callback()
@@ -151,7 +144,7 @@ class MPG123Player(object):
     def _command(self, command):
         self._program_responded.clear()
         debug("> " + str(command))
-        self._mpg123_process.stdin.write(command.encode("utf-8") + b'\n')
+        self._mpg123_process.stdin.write(command + '\n')
         self._mpg123_process.stdin.flush()
 
         debug("waiting for max " + str(self._ipc_timeout) + " seconds")
