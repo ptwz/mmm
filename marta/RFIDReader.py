@@ -34,9 +34,9 @@ class RFIDReader(object):
 
     DEFAULT_TIMEOUT = 0.5
 
-    START_BYTE = "\x02"
+    START_BYTE = b"\x02"
 
-    END_BYTE = "\x03"
+    END_BYTE = b"\x03"
 
     def __init__(self, on_detection, port=DEFAULT_PORT, baud_rate=DEFAULT_BAUD_RATE, timeout=DEFAULT_TIMEOUT):
         self._old_tag = ""
@@ -63,6 +63,7 @@ class RFIDReader(object):
                 # actually the tag data is divided into 2 bytes version + 8 bytes tag + 2 bytes checksum
                 # I couldn't find out anything about the version differences, so I just ignored it.
                 tag = self._serial_conn.read(12)
+                tag = tag.decode('latin-1')
 
                 tail = self._serial_conn.read()
                 if tail == RFIDReader.END_BYTE and self._old_tag != tag:
