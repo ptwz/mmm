@@ -45,16 +45,22 @@ class MPG123Player(object):
         self._was_error = False
 
         # this prevents mpg123 from spamming the stdout with positional information
-        self._command('SILENCE')
         self._ipc_timeout = MPG123Player._DEFAULT_IPC_TIMEOUT_IN_SECONDS
+        # Wait for mpg123 bootup
+        self._program_responded.wait(self._ipc_timeout)
+        self._command('SILENCE')
 
         self.set_volume(volume)
         self.set_pitch(pitch)
         debug("mpg123 initialized")
 
     def _mpg123_input(self, line):
+        line = line.decode('utf-8')
         debug("< " + str(line))
 
+        if line.startswith("@silence"):
+            debug("mpg123 now silenced")
+            self._program_responded.set()
         if line.startswith('@R MPG123'):
             debug("mpg123 startup")
             self._program_responded.set()
@@ -145,7 +151,7 @@ class MPG123Player(object):
     def _command(self, command):
         self._program_responded.clear()
         debug("> " + str(command))
-        self._mpg123_process.stdin.write(command + '\n')
+        self._mpg123_process.stdin.write(command.encode("utf-8") + b'\n')
         self._mpg123_process.stdin.flush()
 
         debug("waiting for max " + str(self._ipc_timeout) + " seconds")
