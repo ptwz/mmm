@@ -91,11 +91,6 @@ class Album(object):
         >>> a.cur_song().track_num
         1
         >>> first_song = a.cur_song()
-        >>> a.restart()
-        >>> for i in range(0, album_song_count+1): print(a.next_song(wrap=False))
-        None
-        ...
-        >>>
         """
         self.path = path
 
@@ -153,6 +148,17 @@ class Album(object):
         return("==========\nAlbum:\n tag:{}\n name:{}\n artist:{}\n: songs:{})".format(self.tag, self.name, self.artist, self.songs))
 
     def restart(self):
+        """
+        Resets playback of album to its first song.
+
+        >>> a = Album("../audio/Bardic 012345678912")
+        >>> _ = a.next_song()
+        >>> a.cur_song().track_num
+        2
+        >>> a.restart()
+        >>> a.cur_song().track_num
+        1
+        """
         self._song_idx = 0
         self._cur_song = self.songs[self._song_idx]
 
@@ -168,6 +174,9 @@ class Album(object):
         >>> while a.next_song(wrap=True) is not first_song: song_count += 1 # It wraps around, if instructed to do
         >>> song_count
         14
+        >>> # When wrap is off, return None when album is finished
+        >>> [a.next_song(wrap=False) for i in range(len(a.songs)+1)][-1] 
+        None
         """
         bumped = False
         if not self.songs:
@@ -177,6 +186,7 @@ class Album(object):
         if self._song_idx >= len(self.songs):
             self._song_idx = 0
             if not wrap:
+                self._song_idx -= 1
                 bumped = True
         
         self._cur_song = self.songs[self._song_idx]
@@ -231,10 +241,30 @@ class Album(object):
 
 
 class Playlist(object):
+    """
+    Represents a playlist that is made up of one or more albums
+
+    >>> Playlist(".").tag is None
+    True
+    >>> pl = Playlist("../audio/Bardic 012345678912")
+    >>> len(pl.albums) # A single Album
+    1
+    """
     _playlists_by_tag = {}
 
     @classmethod
     def get_playlist(cls, tag):
+        """
+        Fetches a playlist by its tag id and returns the 
+        respective Playlist() object.
+
+        Returns None if the tag in not known
+
+        >>> Playlist.get_playlist("012345678912").albums[0].name
+        'The Roadsmell After The Rain'
+        >>> Playlist.get_playlist("NOTTHERE") is None
+        True
+        """
         try:
             return cls._playlists_by_tag[tag]
         except KeyError:
@@ -244,6 +274,7 @@ class Playlist(object):
         self.tag = None
         self._album_idx = None
         self._cur_album = None
+        self._flag_repeat = False
         self.albums = []
 
         if not match(TAG_IN_PATH_REGEX, path):
@@ -269,6 +300,7 @@ class Playlist(object):
                 if not isdir(current):
                     # We assume only one lever of playlists, so skip
                     debug("Ignoring file {} in playlist {}, will only look for album directories here.".format(d, path))
+                    continue
 
                 album = Album(current)
 
@@ -290,7 +322,7 @@ class Playlist(object):
         self._cur_album = self.albums[self._album_idx]
     
     def _save_state(self):
-        state = {"idx":self._album_idx}
+        state = {"idx":self._album_idx, "repeat": self._flag_repeat}
 
         with open(self.path+"/playlist.json", "w") as f:
             json.dump(state, f)
@@ -300,6 +332,7 @@ class Playlist(object):
             with open(self.path+"/playlist.json", "r") as f:
                 state = json.load(f)
                 self._album_idx = state["idx"]
+                self._flag_repeat = state['repeat']
         except:
             self.restart()
             return
@@ -307,6 +340,16 @@ class Playlist(object):
         self._cur_album = self.albums[self._album_idx]
 
     def restart(self):
+        """
+        Restarts a playlist from first track of first album.
+        >>> pl = Playlist.get_playlist("012345678912")
+        >>> _ = pl.next_song()
+        >>> pl.restart()
+        >>> pl.cur_song().track_num
+        1
+        >>> pl._album_idx
+        0
+        """
         self._album_idx = 0
 
         for album in self.albums:
@@ -316,18 +359,49 @@ class Playlist(object):
             self._album_idx = None
             self._cur_album = None
         else:
-            self._cur_album = self.albums[self._cur_album]
+            self._cur_album = self.albums[self._album_idx]
 
     def next_album(self, wrap=True):
+        """
+        Selects next album in playlist, does NOT restart it.
+
+        >>> pl = Playlist.get_playlist("012345678912")
+        >>> len(pl.albums)
+        1
+        >>> a = pl.next_album() # Wrap by default
+        >>> a is None
+        False
+        >>> pl._album_idx
+        0
+        >>> a = pl.next_album(wrap=False) # If explicitly forbidden, do not wrap
+        >>> a is None
+        True
+        """
         self._album_idx += 1
-        if self._album_idx >= len(self.albums) and self.flag_repeat or wrap:
-            self.album_idx = 0
-        else:
-            return None
+        if self._album_idx >= len(self.albums):
+            if not (self._flag_repeat or wrap):
+                return None
+            self._album_idx -= 1
+
         self._cur_album = self.albums[self._album_idx]
         return self._cur_album
 
     def prev_album(self, wrap=True):
+        """
+        Selects previous album in playlist, does NOT restart it.
+
+        >>> pl = Playlist.get_playlist("012345678912")
+        >>> len(pl.albums)
+        1
+        >>> a = pl.prev_album() # Wrap by default
+        >>> a is None
+        False
+        >>> pl._album_idx
+        0
+        >>> a = pl.prev_album(wrap=False) # If explicitly forbidden, do not wrap
+        >>> a is None
+        True
+        """
         self._album_idx -= 1
         if self._album_idx < 0 and wrap:
             self.album_idx = len(self.albums)-1
