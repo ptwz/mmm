@@ -4,7 +4,7 @@ from logging import getLogger, DEBUG
 from re import compile, match
 from Util import sorted_aphanumeric
 #from watchdog.observers import Observer
-#from watchdog.events import FileSystemEventHandler 
+#from watchdog.events import FileSystemEventHandler
 import eyed3
 import os
 import json
@@ -48,7 +48,7 @@ class Song(object):
 
         if mp3 is None:
             raise ValueError("File {} does not seem to be a valid MP3")
-        
+
         self.current_position = None
         self.path = path
 
@@ -117,14 +117,14 @@ class Album(object):
             return
 
         if ALBUM_INDICATOR_FILE in files:
-            self.is_current_album = True 
+            self.is_current_album = True
 
         for filename in mp3s:
             current = self.path + "/" + filename
 
             if isdir(current):
                 raise Exception("directory ended in .mp3 : " + current)
-            
+
             try:
                 song = Song(current)
                 self.songs.append(song)
@@ -141,11 +141,34 @@ class Album(object):
         self.artist = self.songs[0].artist
         self.name = self.songs[0].album
 
+        self.load_state()
+
     def __repr__(self):
         return("Album(tag={}, name={}, artist={}, songs={})".format(self.tag, self.name, self.artist, self.songs))
 
     def __str__(self):
         return("==========\nAlbum:\n tag:{}\n name:{}\n artist:{}\n: songs:{})".format(self.tag, self.name, self.artist, self.songs))
+
+
+    def save_state(self, postiton):
+        self._song_position = position
+        state = {"idx":self._song_idx, "position": self._song_position}
+
+        with open(self.path+"/playlist.json", "w") as f:
+            json.dump(state, f)
+
+    def load_state(self):
+        try:
+            with open(self.path+"/playlist.json", "r") as f:
+                state = json.load(f)
+                self._song_idx = state["idx"]
+                self._song_position = state['position']
+        except:
+            self.restart()
+            return
+
+        self._cur_song = self.songs[self._song_idx]
+
 
     def restart(self):
         """
@@ -160,6 +183,7 @@ class Album(object):
         1
         """
         self._song_idx = 0
+        self._song_position = 0
         self._cur_song = self.songs[self._song_idx]
 
     def next_song(self, wrap=True):
@@ -175,7 +199,7 @@ class Album(object):
         >>> song_count
         14
         >>> # When wrap is off, return None when album is finished
-        >>> [a.next_song(wrap=False) for i in range(len(a.songs)+1)][-1] 
+        >>> [a.next_song(wrap=False) for i in range(len(a.songs)+1)][-1]
         None
         """
         bumped = False
@@ -188,9 +212,10 @@ class Album(object):
             if not wrap:
                 self._song_idx -= 1
                 bumped = True
-        
+
         self._cur_song = self.songs[self._song_idx]
         if not bumped:
+            self._song_position = 0
             return self._cur_song
         else:
             return None
@@ -220,9 +245,10 @@ class Album(object):
             else:
                 self._song_idx = 0
                 bumped = True
-        
+
         self._cur_song = self.songs[self._song_idx]
         if not bumped:
+            self._song_position = 0
             return self._cur_song
         else:
             return None
@@ -238,6 +264,15 @@ class Album(object):
         if self._cur_song is None:
             self.restart()
         return self._cur_song
+
+    def count_tracks(self):
+        return(len(self.songs))
+
+    def current_track_num(self)
+        if self.cur_song() is not None:
+            return a.cur_song().track_num
+        else:
+            return 0
 
 
 class Playlist(object):
@@ -255,7 +290,7 @@ class Playlist(object):
     @classmethod
     def get_playlist(cls, tag):
         """
-        Fetches a playlist by its tag id and returns the 
+        Fetches a playlist by its tag id and returns the
         respective Playlist() object.
 
         Returns None if the tag in not known
@@ -276,6 +311,7 @@ class Playlist(object):
         self._cur_album = None
         self._flag_repeat = False
         self.albums = []
+        (_, self.name) = os.path.split(path)
 
         if not match(TAG_IN_PATH_REGEX, path):
             #raise Exception("naming convention error: " + current)
@@ -320,24 +356,32 @@ class Playlist(object):
             self._album_idx = current_albums.index(current_album_dir)
 
         self._cur_album = self.albums[self._album_idx]
-    
-    def _save_state(self):
-        state = {"idx":self._album_idx, "repeat": self._flag_repeat}
+
+    def save_state(self, position=None):
+        state = {"idx":self._album_idx, "repeat": self._flag_repeat, "position": self._song}
+
+        if self._cur_album is not None:
+            self._cur_album.save_state()
 
         with open(self.path+"/playlist.json", "w") as f:
             json.dump(state, f)
-    
-    def _load_state(self):
+
+    def load_state(self):
         try:
             with open(self.path+"/playlist.json", "r") as f:
                 state = json.load(f)
                 self._album_idx = state["idx"]
                 self._flag_repeat = state['repeat']
-        except:
+                try:
+                    self._cur_album = albums[self._cur_album]
+                except IndexError:
+                    self._cur_album = None
+        except FileNotFoundError:
             self.restart()
             return
 
         self._cur_album = self.albums[self._album_idx]
+        self._cur_album.load_state()
 
     def restart(self):
         """
@@ -421,7 +465,7 @@ class Playlist(object):
         if album:
             self._cur_album = album
             album.restart()
-            return self.next_song()
+            return self.cur_song()
         else:
             return None
 
@@ -439,7 +483,7 @@ class Playlist(object):
             return self.prev_song(wrap)
         else:
             return None
-    
+
     def cur_song(self):
         if self._cur_album is None:
             return None
@@ -447,6 +491,24 @@ class Playlist(object):
         song = self._cur_album.cur_song()
         return song
 
+    def cur_pos(self):
+        if self._cur_album is None:
+            return None
+
+        return self._cur_album._song_position
+
+    def count_tracks(self):
+        return sum([a.count_tracks() for a in self.albums])
+
+    def current_track_num(self):
+        track = 0
+        for a in self.albums:
+            if a is self._cur_album:
+                break
+            track += len(self.album.songs)
+
+        if self._cur_album is not None:
+            track += self._cur_album.current_track_num()
 
 class Library(object):
 
@@ -454,7 +516,7 @@ class Library(object):
         self.audio_path = audio_path
 
         self.playlists = {}
-        
+
         #change_handler = LibraryFSChangeHandler(self)
 
         #self._observer = Observer()
@@ -473,8 +535,6 @@ class Library(object):
         #    albums = albums[i:] + albums[:i]
 
     def prepare(self):
-        self.TAG_TO_DIR = {}
-
         audio_path = self.audio_path
 
         if not isdir(audio_path):
@@ -515,7 +575,6 @@ if __name__ == "__main__":
         exit(1)
 
     lib = Library(argv[1])
-    debug(str(lib.TAG_TO_DIR))
     #try:
     #    lib = Library(argv[1])
     #    input()

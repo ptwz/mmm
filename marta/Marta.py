@@ -7,6 +7,8 @@ from signal import signal, SIGINT
 from os import environ
 from monotonic import monotonic as mtime
 import traceback
+import os
+import pwd
 
 import Buttons
 from MartaHandler import MartaHandler
@@ -15,6 +17,7 @@ from MPG123 import MPG123Player
 from MPU import MPU
 from RFIDReader import RFIDReader
 from TagToHandler import TAG_TO_HANDLER
+from Library import Library
 
 debug = getLogger('     Marta').debug
 
@@ -54,8 +57,13 @@ class Marta(object):
     SHUTDOWN_SOUND_PATH = MARTA_BASE_DIR + "/audio/system/shutdown.mp3"
     SYSTEM_SOUND_VOLUME = 2
 
-    def __init__(self):
+    def __init__(self, username):
         self.__message_queue = Queue()
+
+        self.leds = LEDStrip()
+
+        self.library = Library(MARTA_BASE_DIR + "/audio/")
+
         Buttons.setup_gpio(lambda pin, millis: self.__message_queue.put([Marta.EVENT_BUTTON, pin, millis]))
 
         if Buttons.is_pushed(Buttons.POWER_BUTTON) and Buttons.is_pushed(Buttons.RED_BUTTON):
@@ -67,7 +75,6 @@ class Marta(object):
                                    lambda: self.__message_queue.put([Marta.EVENT_MPG123_ERROR]),
                                    volume=Marta.SYSTEM_SOUND_VOLUME)
 
-        self.leds = LEDStrip()
 
         self.player.load_track_from_file(Marta.START_SOUND_PATH)
         self.leds.startup()
@@ -260,16 +267,16 @@ def main():
     debug("#################################################")
 
     debug("""
-    
-                            _    _        _                                _          
-                           | |  | |      | |                              | |         
-                           | |  | |  ___ | |  ___  ___   _ __ ___    ___  | |_  ___   
-                           | |/\| | / _ \| | / __|/ _ \ | '_ ` _ \  / _ \ | __|/ _ \  
-                           \  /\  /|  __/| || (__| (_) || | | | | ||  __/ | |_| (_) | 
-                            \/  \/  \___||_| \___|\___/ |_| |_| |_| \___|  \__|\___/  
-                                                           
-                                                           
-    
+
+                            _    _        _                                _
+                           | |  | |      | |                              | |
+                           | |  | |  ___ | |  ___  ___   _ __ ___    ___  | |_  ___
+                           | |/\| | / _ \| | / __|/ _ \ | '_ ` _ \  / _ \ | __|/ _ \
+                           \  /\  /|  __/| || (__| (_) || | | | | ||  __/ | |_| (_) |
+                            \/  \/  \___||_| \___|\___/ |_| |_| |_| \___|  \__|\___/
+
+
+
     MMMMMMMM               MMMMMMMM     MMMMMMMM               MMMMMMMM     MMMMMMMM               MMMMMMMM
     M:::::::M             M:::::::M     M:::::::M             M:::::::M     M:::::::M             M:::::::M
     M::::::::M           M::::::::M     M::::::::M           M::::::::M     M::::::::M           M::::::::M
@@ -286,13 +293,13 @@ def main():
     M::::::M               M::::::M     M::::::M               M::::::M     M::::::M               M::::::M
     M::::::M               M::::::M     M::::::M               M::::::M     M::::::M               M::::::M
     MMMMMMMM               MMMMMMMM     MMMMMMMM               MMMMMMMM     MMMMMMMM               MMMMMMMM
-    
+
     """)
 
     exit_val = 0
 
     debug("initializing")
-    marta = Marta()
+    marta = Marta("pi")
     signal(SIGINT, lambda s, f: marta.interrupt())
 
     debug("looping")
