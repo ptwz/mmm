@@ -6,7 +6,6 @@ from Util import sorted_aphanumeric
 from LEDStrip import LEDStrip
 from MartaHandler import MartaHandler
 from os.path import exists
-from Library import Library, Playlist
 
 debug = getLogger('MscHandler').debug
 
@@ -69,8 +68,9 @@ class MusicHandler(MartaHandler):
     def save_state_and_stop(self):
         self.marta.player.pause_track()
 
-        debug("Saving state.")
-        self.current_playlist.save_state(position=self.marta.player.get_position_in_millis())
+        if self.current_playlist:
+            debug("Saving state.")
+            self.current_playlist.save_state(position=self.marta.player.get_position_in_millis())
 
         self.expected_stop = True
         self.marta.player.stop_track()
@@ -92,11 +92,16 @@ class MusicHandler(MartaHandler):
         return playlist.cur_pos()
 
     def show_playlist_progress(self):
-        song_count = self.current_playlist.count_tracks()
-        if soung_count == 1:
+        if not self.current_playlist:
+            self.marta.leds.fade_up_and_down(LEDStrip.RED)
+            return
+
+        song_count = self.current_playlist.count_songs()
+        current_song = self.current_playlist.current_song_index()
+        if song_count == 1:
             self.marta.leds.fade_up_and_down(LEDStrip.GREEN)
         else:
-            self.marta.leds.song(self.current_song_index, song_count)
+            self.marta.leds.song(current_song, song_count)
 
     def rfid_removed_event(self):
         debug("tag removed.")
@@ -105,6 +110,10 @@ class MusicHandler(MartaHandler):
         return MusicHandler.SHORT_TIMEOUT
 
     def _play_currently_selected_song(self, current_position = 0):
+        if not self.current_playlist:
+            debug("Tried to play without a playlist?!")
+            return
+
         cur_song = self.current_playlist.cur_song()
 
         if self.marta.player.is_track_playing():
@@ -190,8 +199,11 @@ class MusicHandler(MartaHandler):
             debug("ignoring this event because stopping is expected")
             return
 
+        if not self.current_playlist:
+            debug("Song stopped without an active playlist?!")
+            return
+
         cur_song = self.current_playlist.next_song()
-        self.current_song_index = 0 # TODO
 
         self.show_playlist_progress()
 
@@ -249,6 +261,9 @@ class MusicHandler(MartaHandler):
         self._play_currently_selected_song()
 
     def button_next_previous_song(self, pin):
+        if not self.current_playlist:
+            return
+
         if pin == Buttons.BLUE_BUTTON: # Previous/Rewind
             pos = self.marta.player.get_position_in_millis()
             debug("pos=" + str(pos))
@@ -273,7 +288,7 @@ class MusicHandler(MartaHandler):
                 debug("no tag. ignore")
                 return MusicHandler.SHORT_TIMEOUT
 
-            if millis > MusicHandler.LONG_CLICK_THRESHOLD and len(TAG_TO_DIR[self.current_tag]) > 1:
+            if millis > MusicHandler.LONG_CLICK_THRESHOLD:
                 self.button_next_previous_album(pin)
             else:
                 self.button_next_previous_song(pin)
