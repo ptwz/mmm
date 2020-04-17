@@ -138,6 +138,10 @@ class Album(object):
         else:
             self.songs = sorted(self.songs, key=lambda x: x.path)
 
+        if not self.songs:
+            debug("No songs in directory...")
+            return
+
         self.artist = self.songs[0].artist
         self.name = self.songs[0].album
 
@@ -268,7 +272,7 @@ class Album(object):
     def count_tracks(self):
         return(len(self.songs))
 
-    def current_track_num(self)
+    def current_track_num(self):
         if self.cur_song() is not None:
             return a.cur_song().track_num
         else:
@@ -306,6 +310,7 @@ class Playlist(object):
             return None
 
     def __init__(self, path):
+        self.path = path
         self.tag = None
         self._album_idx = None
         self._cur_album = None
@@ -497,10 +502,10 @@ class Playlist(object):
 
         return self._cur_album._song_position
 
-    def count_tracks(self):
+    def count_songs(self):
         return sum([a.count_tracks() for a in self.albums])
 
-    def current_track_num(self):
+    def current_song_idx(self):
         track = 0
         for a in self.albums:
             if a is self._cur_album:
