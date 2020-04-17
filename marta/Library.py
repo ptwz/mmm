@@ -28,9 +28,11 @@ class LibraryFSChangeHandler(FileSystemEventHandler):
 """
 
 class Song(object):
-    def __init__(self, path):
+
+    @classmethod
+    def from_file(cls, path):
         """
-        >>> s = Song("../audio/system/startup.mp3")
+        >>> s = Song.from_file("../audio/system/startup.mp3")
 
         >>> s is not None
         True
@@ -38,7 +40,7 @@ class Song(object):
         '../audio/system/startup.mp3'
         >>> s.artist
         ''
-        >>> s = Song("../audio/Bardic 012345678912/01 But All The Girls.mp3")
+        >>> s = Song.from_file("../audio/Bardic 012345678912/01 But All The Girls.mp3")
         >>> s.artist
         'Bardic'
         >>> s.track_num
@@ -49,8 +51,9 @@ class Song(object):
         if mp3 is None:
             raise ValueError("File {} does not seem to be a valid MP3")
 
+        self = cls(path)
         self.current_position = None
-        self.path = path
+        self.mtime = os.path.getmtime(path)
 
         if mp3.tag is None:
             # Fallback if no ID3 available
@@ -64,11 +67,40 @@ class Song(object):
             self.album = mp3.tag.album
             self.track_num = mp3.tag.track_num[0]
 
+        return self
+
+    @classmethod
+    def from_dict(cls, d):
+        """
+        Creates a new Song instance from a given dict
+
+        >>> song = Song.from_dict({"path":"../audio/MaxMustermann 12345", "artist": "Max Mustermann", "album": "Musteralbum", "title": "Oh Musterlied", "track_num":1})
+        """
+        return cls(**d)
+
+    def __init__(self, path, title=None, album=None, artist=None, track_num=None, mtime=None):
+        self.path = path
+        self.title = title
+        self.album = album
+        self.artist = artist
+        self.track_num = track_num
+        self.mtime = mtime
+
     def __repr__(self):
         return("Song(title={}, track_num={})".format(self.title, self.track_num))
 
     def __str__(self):
         return("Song(title={}, track_num={})".format(self.title, self.track_num))
+
+    def to_dict(self):
+        return {
+            "path": self.path,
+            "title": self.title,
+            "album": self.album,
+            "artist": self.artist,
+            "track_num": self.track_num,
+            "mtime": self.mtime
+            }
 
 class Album(object):
     def __init__(self, path):
@@ -110,6 +142,22 @@ class Album(object):
         else:
             self.tag = path[-12:]
 
+        # Load state cache
+        cache_file = path+"/cache.json"
+        cached_songs = {}
+        if os.path.isfile(cache_file):
+            try:
+                with open(path + "/cache.json", 'r') as f:
+                    cache = json.load(f)
+                    for song_dict in cache:
+                        song = Song.from_dict(song_dict)
+                        cached_songs[song.path] = song
+            except PermissionError:
+                debug("Could not read cache % due to lack of permissions" % cache)
+            except json.JSONDecodeError:
+                debug("JSON format error reading cache file %" % cache)
+
+
         files = sorted_aphanumeric(listdir(path))
         mp3s = [ x for x in files if ".mp3" in x.lower() ]
         if not mp3s:
@@ -125,8 +173,15 @@ class Album(object):
             if isdir(current):
                 raise Exception("directory ended in .mp3 : " + current)
 
+            # Prefer cached songs
+            if current in cached_songs:
+                song = cached_songs[current]
+                if os.path.getmtime(current) == song.mtime:
+                    self.songs.append(song)
+                    continue
+                        
             try:
-                song = Song(current)
+                song = Song.from_file(current)
                 self.songs.append(song)
             except ValueError:
                 song = None
@@ -145,6 +200,10 @@ class Album(object):
         self.artist = self.songs[0].artist
         self.name = self.songs[0].album
 
+        # Now wriste cache back
+        with open(cache_file, 'w') as f:
+            json.dump([song.to_dict() for song in self.songs], f)
+
         self.load_state()
 
     def __repr__(self):
@@ -158,12 +217,12 @@ class Album(object):
         self._song_position = position
         state = {"idx":self._song_idx, "position": self._song_position}
 
-        with open(self.path+"/playlist.json", "w") as f:
+        with open(self.path+"/album.json", "w") as f:
             json.dump(state, f)
 
     def load_state(self):
         try:
-            with open(self.path+"/playlist.json", "r") as f:
+            with open(self.path+"/album_state.json", "r") as f:
                 state = json.load(f)
                 self._song_idx = state["idx"]
                 self._song_position = state['position']
