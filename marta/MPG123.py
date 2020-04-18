@@ -13,7 +13,7 @@ class MPG123Player(object):
 
     # The first interaction with mpg123 takes really long, so this constant will not be considered
     # but all subsequent commands will not take longer than this time
-    _DEFAULT_IPC_TIMEOUT_IN_SECONDS = 1
+    _DEFAULT_IPC_TIMEOUT_IN_SECONDS = 3
 
     _DEFAULT_VOLUME = 50
     _DEFAULT_PITCH = 100
@@ -36,7 +36,7 @@ class MPG123Player(object):
 
         self._on_stop_callback = on_stop_callback
         self._on_error_callback = on_error_callback
-        self._mpg123_process = Popen([MPG123Player._MPG123_BINARY, "--remote"], stdin=PIPE, stdout=PIPE, stderr=STDOUT, universal_newlines=True, bufsize=2)
+        self._mpg123_process = Popen(['sudo', '-upi', MPG123Player._MPG123_BINARY, "--remote"], stdin=PIPE, stdout=PIPE, stderr=STDOUT, universal_newlines=True, bufsize=2)
 
         self._read_sout_thread = Thread(target=self._read_sout)
         self._read_sout_thread.daemon = True

@@ -213,7 +213,7 @@ class Album(object):
         return("==========\nAlbum:\n tag:{}\n name:{}\n artist:{}\n: songs:{})".format(self.tag, self.name, self.artist, self.songs))
 
 
-    def save_state(self, postiton):
+    def save_state(self, position=None):
         self._song_position = position
         state = {"idx":self._song_idx, "position": self._song_position}
 
@@ -333,7 +333,8 @@ class Album(object):
 
     def current_track_num(self):
         if self.cur_song() is not None:
-            return a.cur_song().track_num
+            # TODO calculation is wrong, have to add all albums!
+            return self.cur_song().track_num
         else:
             return 0
 
@@ -422,10 +423,12 @@ class Playlist(object):
         self._cur_album = self.albums[self._album_idx]
 
     def save_state(self, position=None):
-        state = {"idx":self._album_idx, "repeat": self._flag_repeat, "position": self._song}
+        state = {"idx":self._album_idx, "repeat": self._flag_repeat}
+        if position is not None:
+            state['position'] = position
 
         if self._cur_album is not None:
-            self._cur_album.save_state()
+            self._cur_album.save_state(position)
 
         with open(self.path+"/playlist.json", "w") as f:
             json.dump(state, f)
@@ -437,7 +440,7 @@ class Playlist(object):
                 self._album_idx = state["idx"]
                 self._flag_repeat = state['repeat']
                 try:
-                    self._cur_album = albums[self._cur_album]
+                    self._cur_album = self.albums[self._album_idx]
                 except IndexError:
                     self._cur_album = None
         except FileNotFoundError:
@@ -564,7 +567,7 @@ class Playlist(object):
     def count_songs(self):
         return sum([a.count_tracks() for a in self.albums])
 
-    def current_song_idx(self):
+    def current_song_index(self):
         track = 0
         for a in self.albums:
             if a is self._cur_album:
@@ -573,6 +576,7 @@ class Playlist(object):
 
         if self._cur_album is not None:
             track += self._cur_album.current_track_num()
+        return track
 
 class Library(object):
 
