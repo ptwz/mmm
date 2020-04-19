@@ -8,6 +8,7 @@ from MartaHandler import MartaHandler
 from os.path import exists
 
 debug = getLogger('MscHandler').debug
+info = getLogger('MscHandler').info
 
 MARTA_BASE_DIR = environ["MARTA"]
 
@@ -82,7 +83,7 @@ class MusicHandler(MartaHandler):
         playlist.load_state()
 
         if playlist is None:
-            debug("Unkown tag read...")
+            info("Unkown tag read...")
             return
 
         self.current_tag = tag
@@ -111,7 +112,7 @@ class MusicHandler(MartaHandler):
 
     def _play_currently_selected_song(self, current_position = 0):
         if not self.current_playlist:
-            debug("Tried to play without a playlist?!")
+            info("Tried to play without a playlist?!")
             return
 
         cur_song = self.current_playlist.cur_song()
@@ -171,7 +172,7 @@ class MusicHandler(MartaHandler):
 
             self.currently_controlling = MusicHandler.CONTROL_BRIGHTNESS
             self.marta.leds.fade_up_and_down(LEDStrip.PURPLE)
-            debug("now controlling brightness")
+            info("now controlling brightness")
             return
 
         if x > 45:
@@ -180,7 +181,7 @@ class MusicHandler(MartaHandler):
 
             self.currently_controlling = MusicHandler.CONTROL_PITCH
             self.marta.leds.fade_up_and_down(LEDStrip.YELLOW)
-            debug("now controlling pitch")
+            info("now controlling pitch")
             return
 
         if self.currently_controlling == MusicHandler.CONTROL_VOLUME:
@@ -188,7 +189,7 @@ class MusicHandler(MartaHandler):
 
         self.currently_controlling = MusicHandler.CONTROL_VOLUME
         self.marta.leds.fade_up_and_down(LEDStrip.BLUE)
-        debug("now controlling volume")
+        info("now controlling volume")
 
     def player_stop_event(self):
         '''

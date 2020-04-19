@@ -3,6 +3,7 @@ from threading import Thread, Event
 from logging import getLogger
 
 debug = getLogger('    MPG123').debug
+info = getLogger('    MPG123').info
 
 
 class MPG123Player(object):
@@ -134,7 +135,7 @@ class MPG123Player(object):
                 break
             self._mpg123_input(line)
 
-        debug("mpg123 died")
+        info("mpg123 died")
 
         if self._on_error_callback is not None:
             self._on_error_callback()
@@ -204,7 +205,7 @@ class MPG123Player(object):
         return int(round((float(current_pos) / length) * self._track_length_in_millis))
 
     def set_position_in_millis(self, position_in_millis):
-        position_in_millis /= float(self._track_length_in_millis)
+        position_in_millis /= float(self._track_length_in_millis)+0.5
         position_in_millis = int(round(position_in_millis * self._track_length_in_samples))
         self._command('K ' + str(position_in_millis))
 

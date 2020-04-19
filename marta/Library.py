@@ -1,6 +1,6 @@
 from os import listdir
 from os.path import isdir
-from logging import getLogger, DEBUG
+from logging import getLogger, DEBUG, INFO
 from re import compile, match
 from Util import sorted_aphanumeric
 #from watchdog.observers import Observer
@@ -10,8 +10,7 @@ import os
 import json
 
 debug = getLogger('   Library').debug
-getLogger('   Library').setLevel(DEBUG)
-
+info = getLogger('   Library').info
 
 ALBUM_INDICATOR_FILE = ".albumindicator"
 
@@ -141,27 +140,32 @@ class Album(object):
             self.tag = None
         else:
             self.tag = path[-12:]
+        self.rescan()
+        self.load_state()
 
+    def rescan(self):
+        '''
+        Scan album directory for files and load their metadata.
+        '''
         # Load state cache
-        cache_file = path+"/cache.json"
+        cache_file = self.path+"/cache.json"
         cached_songs = {}
         if os.path.isfile(cache_file):
             try:
-                with open(path + "/cache.json", 'r') as f:
+                with open(self.path + "/cache.json", 'r') as f:
                     cache = json.load(f)
                     for song_dict in cache:
                         song = Song.from_dict(song_dict)
                         cached_songs[song.path] = song
             except PermissionError:
-                debug("Could not read cache % due to lack of permissions" % cache)
+                info("Could not read cache % due to lack of permissions" % cache)
             except json.JSONDecodeError:
-                debug("JSON format error reading cache file %" % cache)
+                info("JSON format error reading cache file %" % cache)
 
-
-        files = sorted_aphanumeric(listdir(path))
+        files = sorted_aphanumeric(listdir(self.path))
         mp3s = [ x for x in files if ".mp3" in x.lower() ]
         if not mp3s:
-            debug("empty album: " + path)
+            info("empty album: " + self.path)
             return
 
         if ALBUM_INDICATOR_FILE in files:
@@ -194,17 +198,15 @@ class Album(object):
             self.songs = sorted(self.songs, key=lambda x: x.path)
 
         if not self.songs:
-            debug("No songs in directory...")
+            info("No songs in directory...")
             return
 
         self.artist = self.songs[0].artist
         self.name = self.songs[0].album
 
-        # Now wriste cache back
+        # Now write cache back
         with open(cache_file, 'w') as f:
             json.dump([song.to_dict() for song in self.songs], f)
-
-        self.load_state()
 
     def __repr__(self):
         return("Album(tag={}, name={}, artist={}, songs={})".format(self.tag, self.name, self.artist, self.songs))
@@ -222,7 +224,7 @@ class Album(object):
 
     def load_state(self):
         try:
-            with open(self.path+"/album_state.json", "r") as f:
+            with open(self.path+"/album.json", "r") as f:
                 state = json.load(f)
                 self._song_idx = state["idx"]
                 self._song_position = state['position']
@@ -247,7 +249,10 @@ class Album(object):
         """
         self._song_idx = 0
         self._song_position = 0
-        self._cur_song = self.songs[self._song_idx]
+        try:
+            self._cur_song = self.songs[self._song_idx]
+        except IndexError:
+            self._cur_song = None
 
     def next_song(self, wrap=True):
         """
@@ -400,7 +405,7 @@ class Playlist(object):
 
                 if not isdir(current):
                     # We assume only one lever of playlists, so skip
-                    debug("Ignoring file {} in playlist {}, will only look for album directories here.".format(d, path))
+                    info("Ignoring file {} in playlist {}, will only look for album directories here.".format(d, path))
                     continue
 
                 album = Album(current)
@@ -622,7 +627,8 @@ class Library(object):
 
             debug(d)
             if not isdir(audio_path + "/" + d):
-                raise Exception("not a directory: " + current)
+                continue
+                #raise Exception("not a directory: " + current)
 
             if d == "system":
                 continue
@@ -636,10 +642,12 @@ if __name__ == "__main__":
     from SetupLogging import setup_stdout_logging
     from sys import argv
 
+    getLogger('   Library').setLevel(DEBUG)
+
     #setup_stdout_logging()
 
     if len(argv) != 2:
-        debug("Error: Missing path argument.")
+        info("Error: Missing path argument.")
         exit(1)
 
     lib = Library(argv[1])
@@ -650,4 +658,4 @@ if __name__ == "__main__":
     #    debug("Error: " + repr(e))
     #    exit(1)
 
-    debug("Everything seems fine.")
+    info("Everything seems fine.")

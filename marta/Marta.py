@@ -1,5 +1,5 @@
 # system
-from logging import handlers, getLogger, DEBUG, Formatter, StreamHandler
+from logging import handlers, getLogger, DEBUG, INFO, Formatter, StreamHandler
 from sys import stdout, argv
 from queue import Queue, Empty
 from time import sleep, strftime
@@ -20,6 +20,7 @@ from TagToHandler import TAG_TO_HANDLER
 from Library import Library
 
 debug = getLogger('     Marta').debug
+info = getLogger('     Marta').info
 
 MARTA_BASE_DIR = environ["MARTA"]
 
@@ -68,7 +69,7 @@ class Marta(object):
 
         if Buttons.is_pushed(Buttons.POWER_BUTTON) and Buttons.is_pushed(Buttons.RED_BUTTON):
             Buttons.terminate()
-            debug("Early user interrupt!")
+            info("Early user interrupt!")
             exit(Marta.EXIT_DEBUG)
 
         self.player = MPG123Player(lambda: self.__message_queue.put([Marta.EVENT_SONG_STOPPED]),
@@ -143,22 +144,22 @@ class Marta(object):
             params = msg[1:]
 
             if event == Marta.EVENT_INTERRUPT:
-                debug("Critical: Interrupt event!")
+                info("Critical: Interrupt event!")
                 break
 
             elif event == Marta.EVENT_MPG123_ERROR:
-                debug("Critical: MPG123 error event!")
+                info("Critical: MPG123 error event!")
                 break
 
             elif event == Marta.EVENT_BUTTON and params[0] == Buttons.POWER_BUTTON:
-                debug("Critical: Power button event!")
+                info("Critical: Power button event!")
                 break
 
             elif event == Marta.EVENT_RFID_TAG:
                 tag = params[0]
 
                 if tag == Marta.INTERRUPT_TAG:
-                    debug("Critical: Interrupt tag event!")
+                    info("Critical: Interrupt tag event!")
                     exit(Marta.EXIT_DEBUG)
                     break
 
@@ -192,7 +193,7 @@ class Marta(object):
         current_handler.uninitialize()
 
     def terminate(self):
-        debug("Terminating!")
+        info("Terminating!")
 
         try:
             self.player.set_volume(Marta.SYSTEM_SOUND_VOLUME)
@@ -249,10 +250,11 @@ class Marta(object):
 
 def main():
     logger = getLogger('')
-    logger.setLevel(DEBUG)
+    logger.setLevel(INFO)
     formatter = Formatter("%(asctime)s.%(msecs)03d | %(name)s |    %(message)s", "%H:%M:%S")
 
     if "log2stdout" in argv:
+        logger.setLevel(DEBUG)
         ch = StreamHandler(stdout)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
@@ -261,12 +263,12 @@ def main():
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-    debug("#################################################")
-    debug("#                  INITIALIZED                  #")
-    debug("#              " + strftime("%Y-%m-%d %H:%M:%S") + "              #")
-    debug("#################################################")
+    info("#################################################")
+    info("#                  INITIALIZED                  #")
+    info("#              " + strftime("%Y-%m-%d %H:%M:%S") + "              #")
+    info("#################################################")
 
-    debug("""
+    info("""
 
                             _    _        _                                _
                            | |  | |      | |                              | |
