@@ -1,0 +1,27 @@
+
+{% extends "bootstrap/base.html" %}
+{% block title %}This is an example page{% endblock %}
+
+
+{% block content %}
+<p>
+<h1>Martamusikmaschine Home</h1>
+<div>
+	Noch etwas blah, damit der Kram etwas nach unten kommt
+</div>
+<p>
+<ul>
+{% for tag in mapping %}
+<li> {{ tag }}
+		<ol>
+	{% for dir in mapping[tag] %}
+	<li>
+		{{ dir.split("/")[-1] }}
+	</li>
+	{% endfor %}
+		</ol>
+	</li>
+{% endfor %}
+</ul>
+</p>
+{% endblock %}

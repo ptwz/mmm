@@ -1,0 +1,21 @@
+{% extends "bootstrap/base.html" %}
+{% block title %}This is an example page{% endblock %}
+
+
+{% block content %}
+<form action="" method="post" name="simple" enctype="multipart/form-data">
+{{ form.csrf_token }}
+<p>
+<h1>Upload a file</h1>
+<div>
+	Noch etwas blah, damit der Kram etwas nach unten kommt
+</div>
+<p>
+{{form.folder()}}
+</p>
+<p>
+{{form.filename()}}
+</p>
+<p><input type="submit" value="Submit"></p>
+</form>
+{% endblock %}

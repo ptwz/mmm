@@ -3,6 +3,7 @@ from os.path import isdir
 from logging import getLogger, DEBUG, INFO
 from re import compile, match
 from Util import sorted_aphanumeric
+import hashlib
 #from watchdog.observers import Observer
 #from watchdog.events import FileSystemEventHandler
 import eyed3
@@ -124,6 +125,7 @@ class Album(object):
         >>> first_song = a.cur_song()
         """
         self.path = path
+        self.id = hashlib.sha256(path.encode('utf-8')).hexdigest()
 
         self.tag = None
         self.name = ""
@@ -214,7 +216,6 @@ class Album(object):
     def __str__(self):
         return("==========\nAlbum:\n tag:{}\n name:{}\n artist:{}\n: songs:{})".format(self.tag, self.name, self.artist, self.songs))
 
-
     def save_state(self, position=None):
         self._song_position = position
         state = {"idx":self._song_idx, "position": self._song_position}
@@ -234,6 +235,14 @@ class Album(object):
 
         self._cur_song = self.songs[self._song_idx]
 
+    def to_dict(self):
+        return {
+                "name": self.name,
+                "id": self.id,
+                "path": self.path,
+                "current_song": self._song_idx,
+                "songs": [ s.to_dict() for s in self.songs ]
+                }
 
     def restart(self):
         """
@@ -356,6 +365,8 @@ class Playlist(object):
     """
     _playlists_by_tag = {}
 
+    _playlists_by_id = {}
+
     @classmethod
     def get_playlist(cls, tag):
         """
@@ -374,6 +385,19 @@ class Playlist(object):
         except KeyError:
             return None
 
+    @classmethod
+    def get_playlist_by_id(cls, id):
+        """
+        Fetches a playlist by its id and returns the
+        respective Playlist() object.
+
+        Returns None if the tag in not known
+        """
+        try:
+            return cls._playlists_by_id[id]
+        except KeyError:
+            return None
+
     def __init__(self, path):
         self.path = path
         self.tag = None
@@ -381,6 +405,8 @@ class Playlist(object):
         self._cur_album = None
         self._flag_repeat = False
         self.albums = []
+        self.id = hashlib.sha256(path.encode('utf-8')).hexdigest()
+        self._playlists_by_id[self.id] = self
         (_, self.name) = os.path.split(path)
 
         if not match(TAG_IN_PATH_REGEX, path):
@@ -413,10 +439,11 @@ class Playlist(object):
                 self.albums.append(album)
 
         # Remember all playlists by their tag
-        if self.tag in self._playlists_by_tag:
-            raise Exception("tag found twice: " + path + ", " + str(self._playlists_by_tag[self.tag]))
+        if self.tag is not None:
+            if self.tag in self._playlists_by_tag:
+                raise Exception("tag "+self.tag+" found twice: " + path + ", " + str(self._playlists_by_tag[self.tag]))
+            self._playlists_by_tag[self.tag] = self
 
-        self._playlists_by_tag[self.tag] = self
         self.albums = sorted(self.albums, key=lambda x: x.name.lower())
 
         self._album_idx = 0
@@ -424,9 +451,20 @@ class Playlist(object):
         current_albums = [x.is_current_album for x in self.albums]
         if True in current_albums:
             self._album_idx = current_albums.index(current_album_dir)
+    
+        try:
+            self._cur_album = self.albums[self._album_idx]
+        except IndexError:
+            self._cur_album = None
 
-        self._cur_album = self.albums[self._album_idx]
-
+    def to_dict(self):
+        return {
+                "name": self.name,
+                "id": self.id,
+                "path": self.path,
+                "current_album": self._album_idx,
+                "albums": [ a.to_dict() for a in self.albums ]
+                }
     def save_state(self, position=None):
         state = {"idx":self._album_idx, "repeat": self._flag_repeat}
         if position is not None:
@@ -588,7 +626,7 @@ class Library(object):
     def __init__(self, audio_path):
         self.audio_path = audio_path
 
-        self.playlists = {}
+        self.playlists = []
 
         #change_handler = LibraryFSChangeHandler(self)
 
@@ -634,9 +672,13 @@ class Library(object):
                 continue
 
             playlist = Playlist(current)
+        self.playlists.append(playlist)
 
-    def lookup_playlist(self, tag):
-        return Playlist.get_playlist(tag)
+    def lookup_playlist(self, tag=None, id=None):
+        if id is not None:
+            return Playlist.get_playlist_by_id(id)
+        else:
+            return Playlist.get_playlist(tag)
 
 if __name__ == "__main__":
     from SetupLogging import setup_stdout_logging
