@@ -1,7 +1,10 @@
 
 {% extends "bootstrap/base.html" %}
+{% block scripts %}
+{{super()}}
+<script src="/static/js/mmm.js"></script>
+{% endblock %}
 {% block title %}This is an example page{% endblock %}
-
 
 {% block content %}
 <p>
@@ -11,12 +14,22 @@
 </div>
 <p>
 <ul>
-{% for tag in mapping %}
-<li> {{ tag }}
+{% for pl in mapping %}
+<li> <h2 data-type="playlist" data-id="{{pl.id}}">{{ pl.name }}</h2>
+	<form action="/music/playlist/assign/{{pl.id}}" method="post" data-usage="assign_tag">
+		{{ form.csrf_token }}
+		<input type="text" name="tag" value="{{pl.tag}}" placeholder="Tag number, like 123456789"></p>
+		<input type="submit" class="assign_tag_button" value="Submit"></p>
+	</form>
 		<ol>
-	{% for dir in mapping[tag] %}
+	{% for album in pl.albums %}
 	<li>
-		{{ dir.split("/")[-1] }}
+		<h3 data-type="album" data-id="{{ album.id }}">{{ album.path.split("/")[-1] }}</h3>
+		<ol>
+			{% for song in album.songs %}
+			<li>{{ song.title }}</li>
+			{% endfor %}
+		</ol>
 	</li>
 	{% endfor %}
 		</ol>

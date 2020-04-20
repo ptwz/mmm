@@ -1,4 +1,4 @@
-from flask import Flask, render_template, flash, request
+from flask import Flask, render_template, flash, request, send_from_directory
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from flask_wtf.file import FileField, FileRequired
@@ -6,16 +6,21 @@ from wtforms import Form, TextField, TextAreaField, validators, StringField, Sub
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
 from Library import Library
+#from Marta import Marta
+EVENT_WEB_MUSIC = 5 # TODO
 
 import random
 import json
 
+marta_queue = None
+
 # App config.
 DEBUG = True
-app = Flask(__name__, template_folder='../web/templates')
+app = Flask(__name__, template_folder='../web/templates', static_folder='../web/static')
 Bootstrap(app)
 app.config.from_object(__name__)
 app.config['SECRET_KEY'] = "".join(random.choices("0123456789abcdef", k=30))
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 csrf = CSRFProtect(app)
 
 audio_dir = "../audio"
@@ -40,9 +45,9 @@ class UploadForm(FlaskForm):
 
 @app.route('/')
 def home():
-    mapping = TagToDir.TAG_TO_DIR
+    mapping = [ pl.to_dict() for pl in lib.playlists]
 
-    return render_template('index.html', mapping=TagToDir.TAG_TO_DIR)
+    return render_template('index.html', mapping=mapping, form=FlaskForm(), randint=random.randint)
 
 @app.route('/music/playlist/load', methods=['POST'])
 def playlist_load():
@@ -54,8 +59,14 @@ def music_playlist():
     return json.dumps([pl.to_dict() for pl in lib.playlists])
         
 @app.route('/music/playlist/assign/<playlist>', methods=['POST'])
-def playlist_assign(playlist_id):
-    return ""
+def playlist_assign(playlist):
+    tag = request.form.get("tag", default=None)
+    pl = lib.lookup_playlist(id=playlist)
+    pl.set_tag(tag)
+    if "AJAX" not in request.form:
+        return home()
+    else:
+        return '{status:"ok"}'
 
 @app.route('/music/playlist/<tag_or_current>', methods=['GET'])
 def playlist(tag_or_current):
@@ -65,11 +76,19 @@ def playlist(tag_or_current):
 
     return ""
 
-@app.route('/music/control', methods=['GET', 'POST'])
-def music_control():
-    action = request.args.get("tag", default=None)
-    if action not in ['start', 'stop', 'song_next', 'song_prev']:
-        return ""
+@app.route('/music/control/play', methods=['POST'])
+def music_control_play():
+    playlist = request.form.get("playlist", default=None)
+    album = request.form.get("album", default=None)
+    track = request.form.get("track", default=None)
+    print(repr( [ playlist, album, track ] ))
+    if marta_queue is not None:
+        marta_queue.put([Marta.EVENT_WEB_MUSIC, playlist, album, track])
+    return ""
+
+@app.route('/music/control/stop', methods=['POST'])
+def music_control_stop():
+    return ""
 
 @app.route('/music/state', methods=['GET'])
 def music_state():
@@ -134,5 +153,10 @@ def upload():
 #        
 #        return render_template('index.html', form=form)
 
+#@app.route("/static/<path:filename>")
+#def send_js(filename):
+#    return send_from_directory("../web/static", filename)
+
 if __name__ == "__main__":
+    app.jinja_env.auto_reload = True
     app.run()
