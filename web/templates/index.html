@@ -3,7 +3,6 @@
 {% block scripts %}
 {{super()}}
 <script src="/static/js/mmm.js"></script>
-<link href="/static/css/fontawesome.min.css" rel="stylesheet">
 {% endblock %}
 {% block title %}This is an example page{% endblock %}
 
@@ -11,35 +10,56 @@
 <p>
 <h1 data-csrf="{{ csrf_token() }}">Martamusikmaschine Home</h1>
 <div>
-	Noch etwas blah, damit der Kram etwas nach unten kommt
+    Noch etwas blah, damit der Kram etwas nach unten kommt
 </div>
-<p>
-<ul>
-{% for pl in mapping %}
-<li> <h2 data-type="playlist" data-id="{{pl.id}}">{{ pl.name }}</h2>
-	<div class="play" data-playlist="{{pl.id}}">Play <i class="fa fa-user"></i> </div>
-	<form action="/music/playlist/assign/{{pl.id}}" method="post" data-usage="assign_tag">
-		{{ form.csrf_token }}
-		<input type="text" name="tag" value="{{pl.tag}}" placeholder="Tag number, like 123456789"></p>
-		<input type="submit" class="assign_tag_button" value="Submit"></p>
-	</form>
-		<ol>
-	{% for album in pl.albums %}
-	<li>
-		<h3 data-type="album" data-id="{{ album.id }}">{{ album.path.split("/")[-1] }}</h3>
-		<div class="play" data-playlist="{{pl.id}}" data-album="{{album.id}}">Play <i class="fa fa-user"></i> </div>
-		<ol>
-			{% for song in album.songs %}
-			<li>{{ song.title }}
-				<div class="play" data-playlist="{{pl.id}}" data-album="{{album.id}}" data-track="{{song.track_num}}">Play <i class="fa fa-user"></i> </div>
-			</li>
-			{% endfor %}
-		</ol>
-	</li>
-	{% endfor %}
-		</ol>
-	</li>
-{% endfor %}
-</ul>
-</p>
+  <div class="panel-group" id="accordion">
+    {% set i = namespace(value=0) %}
+    {% for pl in mapping %}
+    {% set i.value = i.value + 1 %}
+    <div class="panel panel-default">
+      <div class="panel-heading pull-left">
+        <h2 class="panel-title"><a data-toggle="collapse" data-parent="#accordion" href="#collapse{{i.value}}">{{ pl.name }}</a>
+        <div class="play glyphicon glyphicon-play-circle panel-title pull-right" data-playlist="{{pl.id}}">
+          Play
+        </div>
+        </h2>
+
+    <div class="panel-collapse collapse" id="collapse{{i.value}}">
+        <form action="/music/playlist/assign/{{pl.id}}" method="post" data-usage="assign_tag">
+          {{ form.csrf_token }} <input type="text" name="tag" value="{{pl.tag}}" placeholder="Tag number, like 123456789"><input type="submit" class="assign_tag_button" value="Submit">
+        </form>
+    <ol>
+          {% for album in pl.albums %}
+          {% set i.value = i.value + 1 %}
+          <li class="list-group-item">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                        <a data-toggle="collapse" data-parent="#{{i.value-1}}" href="#collapse{{i.value}}">{{ album.name }}</a>
+                        <div class="play glyphicon glyphicon-play-circle pull-right" data-playlist="{{pl.id}}" data-album="{{album.id}}">
+                          Play
+                        </div>
+                </h3>
+            </div>
+            <div class="panel-collapse collapse" id="collapse{{i.value}}">
+            <ol class="list-group">
+              {% for song in album.songs %}
+              <li class="list-group-item">
+                <span>
+                        <!-- <div class="pull-left"> -->
+                        {{ song.title }}
+                        <!-- </div> -->
+                <div class="pull-right play glyphicon glyphicon-play-circle" data-playlist="{{pl.id}}" data-album="{{album.id}}" data-track="{{song.track_num}}">
+                  Play
+                </div>
+                </span>
+              </li>
+               {% endfor %}
+            </ol>
+            </div>
+            {% endfor %}
+          </li>
+        </ol>
+    </div>
+    {% endfor %}
+      </div>
 {% endblock %}

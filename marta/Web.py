@@ -21,6 +21,7 @@ Bootstrap(app)
 app.config.from_object(__name__)
 app.config['SECRET_KEY'] = "".join(random.choices("0123456789abcdef", k=30))
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config['BOOTSTRAP_SERVE_LOCAL'] = True
 csrf = CSRFProtect(app)
 
 audio_dir = "../audio"
