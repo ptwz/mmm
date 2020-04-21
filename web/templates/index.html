@@ -3,12 +3,13 @@
 {% block scripts %}
 {{super()}}
 <script src="/static/js/mmm.js"></script>
+<link href="/static/css/fontawesome.min.css" rel="stylesheet">
 {% endblock %}
 {% block title %}This is an example page{% endblock %}
 
 {% block content %}
 <p>
-<h1>Martamusikmaschine Home</h1>
+<h1 data-csrf="{{ csrf_token() }}">Martamusikmaschine Home</h1>
 <div>
 	Noch etwas blah, damit der Kram etwas nach unten kommt
 </div>
@@ -16,6 +17,7 @@
 <ul>
 {% for pl in mapping %}
 <li> <h2 data-type="playlist" data-id="{{pl.id}}">{{ pl.name }}</h2>
+	<div class="play" data-playlist="{{pl.id}}">Play <i class="fa fa-user"></i> </div>
 	<form action="/music/playlist/assign/{{pl.id}}" method="post" data-usage="assign_tag">
 		{{ form.csrf_token }}
 		<input type="text" name="tag" value="{{pl.tag}}" placeholder="Tag number, like 123456789"></p>
@@ -25,9 +27,12 @@
 	{% for album in pl.albums %}
 	<li>
 		<h3 data-type="album" data-id="{{ album.id }}">{{ album.path.split("/")[-1] }}</h3>
+		<div class="play" data-playlist="{{pl.id}}" data-album="{{album.id}}">Play <i class="fa fa-user"></i> </div>
 		<ol>
 			{% for song in album.songs %}
-			<li>{{ song.title }}</li>
+			<li>{{ song.title }}
+				<div class="play" data-playlist="{{pl.id}}" data-album="{{album.id}}" data-track="{{song.track_num}}">Play <i class="fa fa-user"></i> </div>
+			</li>
 			{% endfor %}
 		</ol>
 	</li>
