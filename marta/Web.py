@@ -6,13 +6,14 @@ from wtforms import Form, TextField, TextAreaField, validators, StringField, Sub
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
 from Library import Library
+from threading import Thread
 #from Marta import Marta
 EVENT_WEB_MUSIC = 5 # TODO
 
 import random
 import json
 
-marta_queue = None
+send_event = None
 
 # App config.
 DEBUG = True
@@ -24,8 +25,6 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 app.config['BOOTSTRAP_SERVE_LOCAL'] = True
 csrf = CSRFProtect(app)
 
-audio_dir = "../audio"
-lib = Library(audio_dir)
 
 class UploadForm(FlaskForm):
     # Add option for new card/new directory w/o card yet
@@ -83,8 +82,8 @@ def music_control_play():
     album = request.form.get("album", default=None)
     track = request.form.get("track", default=None)
     print(repr( [ playlist, album, track ] ))
-    if marta_queue is not None:
-        marta_queue.put([Marta.EVENT_WEB_MUSIC, playlist, album, track])
+    if send_event is not None:
+        send_event(["PLAY", playlist, album, track])
     return ""
 
 @app.route('/music/control/stop', methods=['POST'])
@@ -157,7 +156,17 @@ def upload():
 #@app.route("/static/<path:filename>")
 #def send_js(filename):
 #    return send_from_directory("../web/static", filename)
+lib = None
+class WebServer(object):
+    def __init__(self, marta, on_event):
+        self._web_thread = Thread(target=app.run, kwargs={"host":"0.0.0.0"})
+        self._web_thread.deamon = True
+        self._web_thread.start()
+        send_event = on_event
+        lib = marta.library
 
 if __name__ == "__main__":
+    audio_dir = "../audio"
+    lib = Library(audio_dir)
     app.jinja_env.auto_reload = True
-    app.run()
+    app.run(host="0.0.0.0")
