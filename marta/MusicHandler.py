@@ -301,6 +301,41 @@ class MusicHandler(MartaHandler):
         else:
             return MusicHandler.LONG_TIMEOUT
 
+    def web_command(self, params):
+        cmd = params[0]
+        params = params[1:]
+        lib = self.marta.library
+        if cmd == "PLAY":
+            if len(param)!=3:
+                return
+            playlist = params[0]
+            album = params[1]
+            track = params[2]
+            
+            pl = None
+            if playlist is not None:
+                pl = lib.lookup_playlist(tag=playlist)
+                if pl is None:
+                    pl = lib.lookup_playlist(id=playlist)
+            else:
+                debug("No playlist given on play event from web")
+                return None
+            if pl == None:
+                return MusicHandler.LONG_TIMEOUT
+
+            al = None
+            if album is not None:
+                try:
+                    al = pl.set_album(album)
+                except IndexError:
+                    al = None
+
+            #if al is not None and track is not None:
+                #
+            
+            
+
+
     def uninitialize(self):
         debug("uninitialize")
         if self.current_tag is not None:

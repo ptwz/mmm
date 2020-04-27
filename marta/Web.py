@@ -5,8 +5,7 @@ from flask_wtf.file import FileField, FileRequired
 from wtforms import Form, TextField, TextAreaField, validators, StringField, SubmitField, SelectField
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
-from Library import Library
-from threading import Thread
+from multiprocessing import Process
 #from Marta import Marta
 EVENT_WEB_MUSIC = 5 # TODO
 
@@ -45,7 +44,7 @@ class UploadForm(FlaskForm):
 
 @app.route('/')
 def home():
-    mapping = [ pl.to_dict() for pl in lib.playlists]
+    mapping = library_api.playlist("all")
 
     return render_template('index.html', mapping=mapping, form=FlaskForm(), randint=random.randint)
 
@@ -56,25 +55,16 @@ def playlist_load():
 
 @app.route('/music/playlist/all', methods=['GET'])
 def music_playlist():
-    return json.dumps([pl.to_dict() for pl in lib.playlists])
+    return json.dumps(library_api.playlist("all"))
         
 @app.route('/music/playlist/assign/<playlist>', methods=['POST'])
 def playlist_assign(playlist):
-    tag = request.form.get("tag", default=None)
-    pl = lib.lookup_playlist(id=playlist)
-    pl.set_tag(tag)
-    if "AJAX" not in request.form:
-        return home()
-    else:
-        return '{status:"ok"}'
+    return json.dumps(library_api.playlist("assign", [playlist], request.form))
 
 @app.route('/music/playlist/<tag_or_current>', methods=['GET'])
 def playlist(tag_or_current):
-    pl = lib.lookup_playlist(tag_or_current)
-    if pl:
-        return json.dumps(pl.to_dict())
-
-    return ""
+    # TODO: This might route a bit more than we want, but good enough for now
+    return json.dumps(library_api.playlist(tag_or_current))
 
 @app.route('/music/control/play', methods=['POST'])
 def music_control_play():
@@ -83,7 +73,7 @@ def music_control_play():
     track = request.form.get("track", default=None)
     print(repr( [ playlist, album, track ] ))
     if send_event is not None:
-        send_event(["PLAY", playlist, album, track])
+        self.send_event(["PLAY", playlist, album, track])
     return ""
 
 @app.route('/music/control/stop', methods=['POST'])
@@ -156,17 +146,17 @@ def upload():
 #@app.route("/static/<path:filename>")
 #def send_js(filename):
 #    return send_from_directory("../web/static", filename)
-lib = None
+library_api = None
 class WebServer(object):
-    def __init__(self, marta, on_event):
-        self._web_thread = Thread(target=app.run, kwargs={"host":"0.0.0.0"})
-        self._web_thread.deamon = True
-        self._web_thread.start()
-        send_event = on_event
-        lib = marta.library
+    def __init__(self, lib_api, on_event):
+        self._web_process = Process(target=app.run, kwargs={"host":"0.0.0.0"})
+        self._web_process.deamon = True
+        self._web_process.start()
+        self.send_event = on_event
+        library_api = lib_api
 
-if __name__ == "__main__":
-    audio_dir = "../audio"
-    lib = Library(audio_dir)
-    app.jinja_env.auto_reload = True
-    app.run(host="0.0.0.0")
+#if __name__ == "__main__":
+#    audio_dir = "../audio"
+#    lib = Library(audio_dir)
+#    app.jinja_env.auto_reload = True
+#    app.run(host="0.0.0.0")

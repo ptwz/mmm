@@ -3,6 +3,9 @@ from os.path import isdir
 from logging import getLogger, DEBUG, INFO
 from re import compile, match
 from Util import sorted_aphanumeric
+from multiprocessing import Queue
+from threading import Thread
+from EventManager import QueueManager
 import hashlib
 #from watchdog.observers import Observer
 #from watchdog.events import FileSystemEventHandler
@@ -12,6 +15,7 @@ import json
 
 debug = getLogger('   Library').debug
 info = getLogger('   Library').info
+error = getLogger('   Library').error
 
 ALBUM_INDICATOR_FILE = ".albumindicator"
 
@@ -399,6 +403,7 @@ class Playlist(object):
             return None
 
     def __init__(self, path):
+        print(path)
         self.path = path
         self.tag = None
         self._album_idx = None
@@ -438,15 +443,17 @@ class Playlist(object):
 
                 self.albums.append(album)
 
+        self.albums = sorted(self.albums, key=lambda x: x.name.lower())
+
+        self._album_idx = 0
+        self.load_state()
+
         # Remember all playlists by their tag
         if self.tag is not None:
             if self.tag in self._playlists_by_tag:
                 raise Exception("tag "+self.tag+" found twice: " + path + ", " + str(self._playlists_by_tag[self.tag]))
             self._playlists_by_tag[self.tag] = self
 
-        self.albums = sorted(self.albums, key=lambda x: x.name.lower())
-
-        self._album_idx = 0
         # Try to remember which album was played last
         current_albums = [x.is_current_album for x in self.albums]
         if True in current_albums:
@@ -456,17 +463,21 @@ class Playlist(object):
             self._cur_album = self.albums[self._album_idx]
         except IndexError:
             self._cur_album = None
+        except TypeError:
+            self._cur_album = None
 
     def to_dict(self):
         return {
                 "name": self.name,
                 "id": self.id,
                 "path": self.path,
+                "tag": self.tag,
                 "current_album": self._album_idx,
                 "albums": [ a.to_dict() for a in self.albums ]
                 }
+
     def save_state(self, position=None):
-        state = {"idx":self._album_idx, "repeat": self._flag_repeat}
+        state = {"idx":self._album_idx, "repeat": self._flag_repeat, "tag": self.tag}
         if position is not None:
             state['position'] = position
 
@@ -482,16 +493,23 @@ class Playlist(object):
                 state = json.load(f)
                 self._album_idx = state["idx"]
                 self._flag_repeat = state['repeat']
+                self.tag = state['tag']
                 try:
                     self._cur_album = self.albums[self._album_idx]
                 except IndexError:
                     self._cur_album = None
-        except FileNotFoundError:
+        except (FileNotFoundError, KeyError):
             self.restart()
             return
 
         self._cur_album = self.albums[self._album_idx]
         self._cur_album.load_state()
+
+    def set_tag(self, tag):
+        if self.tag in self._playlists_by_tag:
+            del self._playlists_by_tag[self.tag]
+        self.tag = tag
+        self.save_state()
 
     def restart(self):
         """
@@ -621,6 +639,23 @@ class Playlist(object):
             track += self._cur_album.current_track_num()
         return track
 
+    def set_album(self, album_idx=None, album_id=None):
+        idx = None
+
+        if album_idx is not None and ( 0 <= self.album_idx < len(self.albums) ):
+            idx = album_idx
+
+        if album_id is not None:
+            for i in range(len(self.albums)):
+                if self.albums[i].id == album_id:
+                    self.album_idx = i
+                    break
+
+        if idx is not None:
+            self.album_idx = idx
+            self._cur_album = self.albums[idx]
+
+
 class Library(object):
 
     def __init__(self, audio_path):
@@ -679,6 +714,66 @@ class Library(object):
             return Playlist.get_playlist_by_id(id)
         else:
             return Playlist.get_playlist(tag)
+
+class LibraryAPI(object):
+    QueueManager.make_queue("library_in")
+    QueueManager.make_queue("library_out")
+    
+
+    def __init__(self, library=None):
+        '''
+        library: None if not in same process as the library
+        '''
+        qm = QueueManager.manager()
+        self._queue_cmd = qm.get_library_in()
+        self._queue_response = qm.get_library_out()
+
+        self.library = library
+        if library is not None:
+            self._thread = Thread(target=self._api_handler)
+            self._thread.daemon = True
+            self._thread.start()
+
+    def _api_handler(self):
+        '''
+        Does API related things in the master process.
+
+        Route all messages to the handler function and pass
+        back the result
+        '''
+        while True:
+            msg = self._queue_cmd.get(block=True, timeout=None)
+            print("Message received: {}".format(msg))
+            if msg is None:
+                continue
+            try:
+                response = self.playlist( *msg )
+            except Exception as e:
+               print("Exception occured {}".format(e))
+            finally:
+                self._queue_response.put(response)
+        
+    def playlist(self, command, arguments=[], data={}):
+        if not self.library:
+            self._queue_cmd.put( ( command, arguments, data ) )
+            return self._queue_response.get(block=True, timeout=2)
+
+        if command == "all":
+            return([pl.to_dict() for pl in self.library.playlists])
+        elif command == "assign":
+            pl = self.library.lookup_playlist(arguments[0])
+            if pl is None:
+                return({"ok":False, "message": "Playlist % not found"%arguments[0]})
+            if "tag" not in data:
+                return({"ok":False, "message": "No tag given"})
+            pl.set_tag(data["tag"])
+            return({"ok":True})
+        elif command == "current":
+            return({"ok":False, "message": "Not implemented (yet)"})
+        else:
+            maybe_playlist_id = command
+            r = self.library.lookup_playlist(maybe_playlist_id)
+            return(r)
 
 if __name__ == "__main__":
     from SetupLogging import setup_stdout_logging

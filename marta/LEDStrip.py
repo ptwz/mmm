@@ -1,7 +1,7 @@
-from queue import Queue, Empty
+from queue import Empty
 
 from neopixel import *
-from threading import Thread
+from multiprocessing import Queue, Process
 from logging import getLogger
 
 debug = getLogger('  LEDStrip').debug
@@ -59,9 +59,8 @@ class LEDStrip(object):
         self._strip.begin()
         self._message_queue = Queue()
 
-        self._led_controller_thread = Thread(target=self._control_leds)
-        self._led_controller_thread.daemon = True
-        self._led_controller_thread.start()
+        self._led_controller_process = Process(target=self._control_leds, daemon=True)
+        self._led_controller_process.start()
 
     def _control_leds(self):
         msg = None
@@ -247,18 +246,18 @@ class LEDStrip(object):
 
     def terminate(self):
         debug("led strip terminating.")
-        if self._led_controller_thread is None:
+        if self._led_controller_process is None:
             debug("already terminated")
             return
 
         self._message_queue.put([LEDStrip._EVENT_TERMINATE])
-        self._led_controller_thread.join()
+        self._led_controller_process.join()
 
         for i in range(LEDStrip._LED_COUNT):
             self._strip.setPixelColor(i, 0)
         self._strip.show()
 
-        self._led_controller_thread = None
+        self._led_controller_process = None
 
 
 ################################################################

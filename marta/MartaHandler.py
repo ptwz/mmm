@@ -1,3 +1,7 @@
+from EventManager import QueueManager
+
+QueueManager.make_queue("marta")
+
 class MartaHandler(object):
     EVENT_HANDLER_DONE = -1
 

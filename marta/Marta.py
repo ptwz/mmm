@@ -17,7 +17,9 @@ from MPG123 import MPG123Player
 from MPU import MPU
 from RFIDReader import RFIDReader
 from TagToHandler import TAG_TO_HANDLER
-from Library import Library
+from Library import Library, LibraryAPI
+from Web import WebServer
+from EventManager import Server, QueueManager
 
 debug = getLogger('     Marta').debug
 info = getLogger('     Marta').info
@@ -34,6 +36,9 @@ class Marta(object):
     EVENT_MPG123_ERROR = 3
     EVENT_ROTATION = 4
     EVENT_INTERRUPT = 5
+    EVENT_WEB_MUSIC = 6
+    EVENT_WEB_POWER = 7
+    EVENT_WEB_RFID = 8
 
     EXIT_DEBUG = 2
 
@@ -43,7 +48,10 @@ class Marta(object):
         "EVENT_BUTTON",
         "EVENT_MPG123_ERROR",
         "EVENT_ROTATION",
-        "EVENT_INTERRUPT"
+        "EVENT_INTERRUPT",
+        "EVENT_WEB_MUSIC",
+        "EVENT_WEB_POWER",
+        "EVENT_WEB_RFID"
     ]
 
     ################
@@ -59,12 +67,16 @@ class Marta(object):
     SYSTEM_SOUND_VOLUME = 2
 
     def __init__(self, username):
-        self.__message_queue = Queue()
+
+        library_api_web = LibraryAPI()
+        self.library = Library(MARTA_BASE_DIR + "/audio/")
+        self.library_api = LibraryAPI(self.library)
+
+        self.__queue_manager = QueueManager.manager()
+
+        self.__message_queue = self.__queue_manager.get_marta()
 
         self.leds = LEDStrip()
-
-        self.library = Library(MARTA_BASE_DIR + "/audio/")
-
         Buttons.setup_gpio(lambda pin, millis: self.__message_queue.put([Marta.EVENT_BUTTON, pin, millis]))
 
         if Buttons.is_pushed(Buttons.POWER_BUTTON) and Buttons.is_pushed(Buttons.RED_BUTTON):
@@ -104,6 +116,7 @@ class Marta(object):
                        rotation_receiver=lambda x, y: self.__message_queue.put([Marta.EVENT_ROTATION, x, y]))
 
         self.rfid_reader = RFIDReader(lambda tag: self.__message_queue.put([Marta.EVENT_RFID_TAG, tag]))
+
 
     def interrupt(self):
         self.__message_queue.put([Marta.EVENT_INTERRUPT])
@@ -177,6 +190,11 @@ class Marta(object):
                 return_val = current_handler.rfid_tag_event(params[0])
             elif event == Marta.EVENT_BUTTON:
                 return_val = current_handler.button_event(params[0], params[1])
+            elif event == Marta.EVENT_WEB_MUSIC:
+                music_handler = TAG_TO_HANDLER["default"].get_instance(self)
+                music_hanlder.web_command(params)
+                # self. HIER BAUSTELLE
+                return_val = None
             else:
                 raise Exception("Unknown event: " + str(event))
 
@@ -249,6 +267,11 @@ class Marta(object):
 
 
 def main():
+    queueserver = Server()
+    queueserver.start()
+    sleep(1)
+    qm = QueueManager.manager()
+
     logger = getLogger('')
     logger.setLevel(INFO)
     formatter = Formatter("%(asctime)s.%(msecs)03d | %(name)s |    %(message)s", "%H:%M:%S")
@@ -308,8 +331,8 @@ def main():
     try:
         marta.message_loop()
     except Exception as e:
-        debug("excepted: " + str(e))
-        debug(traceback.format_exc())
+        print("excepted: " + str(e))
+        print(traceback.format_exc())
         exit_val = 1
 
     marta.terminate()
@@ -319,4 +342,5 @@ def main():
 
 
 if __name__ == "__main__":
+    
     main()
